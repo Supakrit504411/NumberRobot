@@ -1,0 +1,651 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>ไล่เลข</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chonburi&family=IBM+Plex+Sans+Thai:wght@400;500;700&family=Mitr:wght@500;600&display=swap">
+<style>
+/* Layout concept: a temple-fair number stall. Raffle-ticket tiles on a night sky, a string of bulbs on top, one big called number. */
+:root {
+  color-scheme: dark;
+  --bg: #1b1442; --bg2: #2a1f5f; --panel: #2f2469; --ink: #fbf3df; --muted: #bcb2e0; --line: #4c3f8f;
+  --accent: #ffb627; --accent-ink: #2a1c4f; --tile1: #fff1cf; --tile2: #ffd3c2; --tile3: #c9ecd9; --tile-ink: #2a1c4f;
+  --good: #4fd18b; --bad: #ff6b5e; --bulb: #ffd76a;
+  --f-display: "Chonburi", "Mitr", Georgia, serif;
+  --f-body: "IBM Plex Sans Thai", "Leelawadee UI", Tahoma, sans-serif;
+  --f-num: "Mitr", "Leelawadee UI", Tahoma, sans-serif;
+}
+:root[data-skin="chalk"] { --bg:#1f3a33; --bg2:#27473f; --panel:#2c5147; --ink:#f1f3e8; --muted:#b4c7ba; --line:#4a7267; --accent:#f6e27a; --accent-ink:#1f3a33; --tile1:#2f584d; --tile2:#35604f; --tile3:#2b5044; --tile-ink:#f7f6e6; --bulb:#f1f3e8; }
+:root[data-skin="sea"] { --bg:#04384d; --bg2:#06506b; --panel:#07597a; --ink:#ecfbfb; --muted:#a4d8df; --line:#1a7d9c; --accent:#ff9d6c; --accent-ink:#04283a; --tile1:#d8f6f2; --tile2:#fbe8c8; --tile3:#b6e8ef; --tile-ink:#04384d; --bulb:#9bf0e6; }
+:root[data-skin="paper"] { color-scheme:light; --bg:#f2f4f7; --bg2:#e4e9f0; --panel:#fff; --ink:#1d2a44; --muted:#5b6880; --line:#c3cede; --accent:#c9304a; --accent-ink:#fff; --tile1:#fff; --tile2:#fdf6c8; --tile3:#dcecfb; --tile-ink:#1d2a44; --good:#14824d; --bad:#c9304a; --bulb:#7d9cc9; }
+:root[data-skin="neon"] { --bg:#0c0a1f; --bg2:#17123a; --panel:#1b1545; --ink:#f5f2ff; --muted:#a79fd6; --line:#3f3490; --accent:#ff3fa4; --accent-ink:#fff; --tile1:#12305a; --tile2:#3a1654; --tile3:#0f4a4a; --tile-ink:#eafcff; --good:#3cf2b0; --bad:#ff5c5c; --bulb:#3ce0ff; }
+:root[data-skin="gold"] { --bg:#170d08; --bg2:#26150c; --panel:#2e1a0e; --ink:#fbeac0; --muted:#c7a877; --line:#6d4a22; --accent:#e5b143; --accent-ink:#1d0f06; --tile1:#efcf7d; --tile2:#d9ad50; --tile3:#f6e0a4; --tile-ink:#2b1608; --bulb:#f5cf6c; }
+
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.55 var(--f-body); overflow: hidden; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; touch-action: manipulation; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, p { margin: 0; }
+.app { height: 100%; display: flex; flex-direction: column; }
+.bulbs { height: 16px; flex: none; background:
+  radial-gradient(circle at 14px 9px, var(--bulb) 0 4px, transparent 5px) 0 0 / 28px 16px repeat-x,
+  linear-gradient(transparent 3px, var(--line) 3px 4px, transparent 4px); }
+.gut { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+.top { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding-block: 8px; }
+.logo { font: 400 28px/1.3 var(--f-display); color: var(--accent); }
+.tabs { display: flex; gap: 4px; margin-left: auto; }
+.tabs button, .ghost { background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 6px 12px; color: var(--muted); }
+.tabs button[aria-current="true"] { color: var(--ink); border-color: var(--line); background: var(--bg2); }
+.ghost { border-color: var(--line); color: var(--ink); }
+.ghost:hover, .tabs button:hover { background: var(--bg2); }
+
+.view { flex: 1; min-height: 0; overflow-y: auto; padding-block: 12px 32px; }
+.col { max-width: 880px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.setup { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 32px; align-items: start; }
+.field { display: grid; gap: 8px; margin-bottom: 20px; }
+.label { font-weight: 700; }
+.hint { color: var(--muted); font-size: 14px; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.seg button { min-width: 52px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg2); font-family: var(--f-num); font-weight: 500; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.seg input { width: 116px; padding: 8px 10px; border-radius: 8px; border: 1px dashed var(--line); background: transparent; }
+.seg input.on { border: 1px solid var(--accent); }
+.names { display: grid; gap: 8px; }
+.nameRow { display: flex; align-items: center; gap: 10px; }
+.nameRow input { flex: 1; min-width: 0; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg2); }
+.check { display: flex; gap: 10px; align-items: flex-start; }
+.check input { width: 20px; height: 20px; margin-top: 3px; accent-color: var(--accent); }
+.go { width: 100%; padding: 14px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font: 400 22px/1.3 var(--f-display); }
+.go:hover { filter: brightness(1.08); }
+.err { color: var(--bad); font-weight: 500; min-height: 1.5em; }
+.how h2 { font: 400 20px/1.4 var(--f-display); margin-bottom: 10px; }
+.how ol { margin: 0; padding-left: 22px; display: grid; gap: 8px; }
+.how { border-left: 1px dashed var(--line); padding-left: 24px; }
+
+.av { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; font-size: 22px; background: var(--bg2); border: 2px solid var(--line); }
+.fr-gold { border-color: #f2c14e; box-shadow: 0 0 0 2px #8a6412; }
+.fr-neon { border-color: #3ce0ff; box-shadow: 0 0 8px 1px #3ce0ff; }
+.fr-flame { border-color: #ff7a3d; box-shadow: 0 0 9px 2px #ff4b1f; }
+.fr-rainbow { border-color: transparent; background: linear-gradient(var(--bg2), var(--bg2)) padding-box, conic-gradient(#ff5e5e, #ffd166, #4fd18b, #3ca8ff, #b36bff, #ff5e5e) border-box; }
+
+/* game */
+.game { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding-block: 8px; }
+.gbar { flex: none; display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; }
+.pcard { flex: 1 1 130px; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg2); }
+.pcard .av { width: 34px; height: 34px; font-size: 18px; }
+.pcard.turn { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.pcard.out { opacity: .45; }
+.pinfo { min-width: 0; }
+.pname { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
+.pmeta { font-size: 13px; color: var(--muted); line-height: 1.3; font-variant-numeric: tabular-nums; }
+.pips { color: var(--bad); letter-spacing: 1px; }
+.pips i { font-style: normal; color: var(--line); }
+.tools { display: flex; gap: 6px; }
+.tools .ghost { padding: 4px 10px; font-size: 14px; }
+.call { flex: none; display: flex; align-items: center; gap: 14px; min-height: 76px; padding: 6px 14px; border-radius: 12px; background: var(--panel); position: relative; overflow: hidden; }
+.callText { flex: 1; min-width: 0; font-weight: 500; font-size: 18px; line-height: 1.35; position: relative; }
+.target { position: relative; font: 600 46px/1.15 var(--f-num); color: var(--accent-ink); background: var(--accent); border-radius: 8px; padding: 0 16px; font-variant-numeric: tabular-nums; }
+.clock { position: relative; font: 600 26px/1 var(--f-num); font-variant-numeric: tabular-nums; min-width: 2.6em; text-align: right; }
+.clock.low { color: var(--bad); }
+.bar { position: absolute; inset: auto 0 0 0; height: 6px; background: var(--accent); transform-origin: left; }
+.bar.low { background: var(--bad); }
+.board { flex: 1; min-height: 0; display: grid; gap: 4px; transition: filter .15s; }
+.board.wait { filter: blur(9px); pointer-events: none; }
+.tile { min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 6px; background: var(--tile1); color: var(--tile-ink); font-family: var(--f-num); font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; transform: rotate(var(--r)); box-shadow: inset 0 0 0 1px rgba(0,0,0,.14), 0 1px 0 rgba(0,0,0,.28); }
+.tile.c2 { background: var(--tile2); }
+.tile.c3 { background: var(--tile3); }
+.tile:hover { filter: brightness(1.08); }
+.tile.gone { visibility: hidden; }
+.tile.hit { background: var(--good); color: #06281a; animation: pop .45s ease-out forwards; }
+.tile.nope { animation: shake .28s; }
+.tile.missed { background: var(--bad); color: #fff; animation: blink .36s 3; }
+@keyframes pop { 40% { transform: scale(1.5); } 100% { transform: scale(.2); opacity: 0; } }
+@keyframes shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+@keyframes blink { 50% { transform: scale(1.25); } }
+
+/* result */
+.over { position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--bg) 82%, transparent); overflow-y: auto; }
+.sheet { width: min(560px, 100%); padding: 24px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); display: grid; gap: 16px; }
+.sheet h2 { font: 400 30px/1.3 var(--f-display); color: var(--accent); text-wrap: balance; }
+.rows { display: grid; gap: 8px; }
+.row { display: flex; align-items: center; gap: 10px; }
+.row .grow { flex: 1; min-width: 0; }
+.row b { font-family: var(--f-num); font-weight: 600; font-variant-numeric: tabular-nums; }
+.unlock { color: var(--good); font-size: 14px; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.btns .go { flex: 2 1 200px; width: auto; font-size: 18px; }
+.btns .ghost { flex: 1 1 120px; }
+
+/* ranking + shop */
+.hd { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.hd h2, .sect { font: 400 22px/1.4 var(--f-display); }
+.tblWrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 500; font-size: 14px; }
+th:nth-child(2), td:nth-child(2) { text-align: left; }
+th:first-child, td:first-child { text-align: left; font-family: var(--f-num); }
+tr.p1 td:first-child { color: var(--accent); font-size: 20px; }
+.who { display: flex; align-items: center; gap: 10px; }
+.who small { display: block; color: var(--accent); line-height: 1.2; }
+.empty { padding: 24px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); }
+.note { color: var(--muted); font-size: 14px; }
+.wallet { font: 600 22px/1.2 var(--f-num); color: var(--accent); font-variant-numeric: tabular-nums; }
+select { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg2); max-width: 100%; }
+select option { background: var(--bg2); color: var(--ink); }
+.items { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.item { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg2); }
+.item.on { border-color: var(--accent); }
+.item .show { height: 48px; display: flex; align-items: center; gap: 4px; }
+.item .nm { flex: 1; font-weight: 500; line-height: 1.35; }
+.item button { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: transparent; font-size: 14px; }
+.item button.buy { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+.item button:disabled { opacity: .55; cursor: default; background: transparent; color: var(--muted); border-color: var(--line); }
+.big { font-size: 34px; line-height: 1; }
+.ttl { font-family: var(--f-display); color: var(--accent); font-size: 15px; line-height: 1.3; }
+.sw { width: 26px; height: 40px; border-radius: 4px; border: 1px solid rgba(128,128,128,.5); }
+.achs { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px 24px; }
+.ach { display: flex; gap: 10px; align-items: baseline; color: var(--muted); }
+.ach::before { content: "○"; }
+.ach.done { color: var(--ink); }
+.ach.done::before { content: "●"; color: var(--good); }
+.ach span:last-child { margin-left: auto; font-family: var(--f-num); white-space: nowrap; }
+.store { padding-block: 6px; background: var(--bad); color: #fff; font-size: 14px; }
+
+@media (max-width: 720px) {
+  .setup { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .how { border-left: 0; border-top: 1px dashed var(--line); padding: 16px 0 0; }
+  .call { min-height: 62px; gap: 10px; padding: 4px 10px; }
+  .callText { font-size: 15px; }
+  .target { font-size: 36px; padding: 0 10px; }
+  .clock { font-size: 20px; }
+  .logo { font-size: 24px; }
+  .tabs { margin-left: 0; }
+  .tabs button { padding: 4px 10px; }
+  .pcard { flex-basis: 40%; padding: 4px 8px; }
+  .pcard .av { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile.hit, .tile.nope, .tile.missed { animation: none; }
+  .board { transition: none; }
+}
+</style>
+
+<div class="app">
+  <div class="bulbs" aria-hidden="true"></div>
+  <div class="store gut" id="storeWarn" hidden>เบราว์เซอร์นี้ไม่อนุญาตให้บันทึกข้อมูล คะแนนและไอเท็มจะหายเมื่อปิดหน้านี้</div>
+
+  <header class="top gut" id="topbar">
+    <h1 class="logo">ไล่เลข</h1>
+    <nav class="tabs" aria-label="เมนูหลัก">
+      <button id="tab-home" data-view="home">เล่น</button>
+      <button id="tab-rank" data-view="rank">อันดับ</button>
+      <button id="tab-shop" data-view="shop">แลกรางวัล</button>
+    </nav>
+  </header>
+
+  <main class="view gut" id="home">
+    <div class="col">
+      <div class="setup">
+        <form id="setupForm" novalidate>
+          <div class="field">
+            <span class="label">จำนวนผู้เล่น</span>
+            <div class="seg" id="seg-players"></div>
+          </div>
+          <div class="field">
+            <label class="label" for="name0">ชื่อผู้เล่น</label>
+            <div class="names" id="names"></div>
+            <datalist id="known"></datalist>
+            <span class="hint">ใช้ชื่อเดิมเพื่อเก็บคะแนนและไอเท็มต่อจากครั้งก่อน</span>
+          </div>
+          <div class="field">
+            <span class="label">จำนวนตัวเลขบนกระดาน</span>
+            <div class="seg" id="seg-count"></div>
+          </div>
+          <div class="field">
+            <span class="label">เวลาในการหาแต่ละครั้ง (วินาที)</span>
+            <div class="seg" id="seg-time"></div>
+          </div>
+          <div class="field">
+            <span class="label">หาไม่ทันครบกี่ครั้งจึงแพ้</span>
+            <div class="seg" id="seg-limit"></div>
+          </div>
+          <div class="field">
+            <label class="check" for="shuffle">
+              <input type="checkbox" id="shuffle">
+              <span>สลับตำแหน่งตัวเลขทุกครั้งหลังเลือก<br><span class="hint">คนหาจะไม่รู้ตำแหน่งจากการดูคนเลือกกด</span></span>
+            </label>
+          </div>
+          <p class="err" id="setupErr" role="alert"></p>
+          <button class="go" type="submit" id="startBtn">เริ่มเกม</button>
+        </form>
+        <aside class="how">
+          <h2>วิธีเล่น</h2>
+          <ol>
+            <li>ผู้เล่นคนแรกกดเลขใดก็ได้บนกระดาน</li>
+            <li>คนถัดไปต้องหาเลขนั้นให้เจอก่อนหมดเวลา กดผิดไม่เสียแต้ม แต่เวลายังเดินต่อ</li>
+            <li>หาเจอทันเวลา เลขนั้นจะออกจากกระดาน ถ้าหาไม่ทันนับเป็นพลาด 1 ครั้ง และเลขยังอยู่บนกระดาน</li>
+            <li>คนหาได้เป็นคนเลือกเลขในตาถัดไป ถ้าเลขหมดจะสุ่มกระดานใหม่</li>
+            <li>ใครหาไม่ทันครบตามที่ตั้งไว้จะตกรอบ คนสุดท้ายที่เหลืออยู่ชนะ</li>
+          </ol>
+        </aside>
+      </div>
+    </div>
+  </main>
+
+  <main class="view gut" id="rank" hidden>
+    <div class="col">
+      <div class="hd">
+        <h2>อันดับผู้เล่น</h2>
+        <div class="seg" id="rankSort"></div>
+      </div>
+      <div id="rankBody"></div>
+      <p class="note">หาเจอได้ 10 คะแนน บวกโบนัสความเร็วสูงสุด 10 คะแนน กระดาน 50 ตัวขึ้นไปคูณ 1.5 และกระดาน 100 ตัวขึ้นไปคูณ 2 จบเกมได้อีก 10 คะแนน ผู้ชนะได้เพิ่ม 50 คะแนนต่อคู่แข่งหนึ่งคน ออกกลางเกมจะไม่นับคะแนน ข้อมูลเก็บไว้ในเครื่องนี้เท่านั้น</p>
+    </div>
+  </main>
+
+  <main class="view gut" id="shop" hidden>
+    <div class="col" id="shopBody"></div>
+  </main>
+
+  <section class="game gut" id="game" hidden aria-label="กระดานเกม">
+    <div class="gbar" id="gbar"></div>
+    <div class="call">
+      <div class="callText" id="callText" role="status"></div>
+      <div class="target" id="target" hidden></div>
+      <div class="clock" id="clock"></div>
+      <div class="bar" id="bar" hidden></div>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="tools">
+      <button class="ghost" id="muteBtn" type="button"></button>
+      <button class="ghost" id="quitBtn" type="button">ออกจากเกม</button>
+    </div>
+  </section>
+
+  <div class="over" id="over" hidden><div class="sheet" id="sheet"></div></div>
+</div>
+
+<script>
+const ITEMS = [
+  { id:'a_chick', cat:'avatar', name:'ลูกเจี๊ยบ', show:'🐥', price:0 },
+  { id:'a_cat', cat:'avatar', name:'แมวไทย', show:'🐱', price:100 },
+  { id:'a_frog', cat:'avatar', name:'กบนา', show:'🐸', price:100 },
+  { id:'a_tiger', cat:'avatar', name:'เสือ', show:'🐯', price:200 },
+  { id:'a_robot', cat:'avatar', name:'หุ่นยนต์', show:'🤖', price:300 },
+  { id:'a_elephant', cat:'avatar', name:'ช้าง', show:'🐘', price:300 },
+  { id:'a_dragon', cat:'avatar', name:'มังกร', show:'🐲', price:500 },
+  { id:'a_crown', cat:'avatar', name:'มงกุฎ', show:'👑', price:800 },
+  { id:'f_none', cat:'frame', name:'กรอบเรียบ', css:'', price:0 },
+  { id:'f_gold', cat:'frame', name:'กรอบทอง', css:'fr-gold', price:200 },
+  { id:'f_neon', cat:'frame', name:'กรอบนีออน', css:'fr-neon', price:300 },
+  { id:'f_flame', cat:'frame', name:'กรอบเปลวไฟ', css:'fr-flame', price:400 },
+  { id:'f_rainbow', cat:'frame', name:'กรอบรุ้ง', css:'fr-rainbow', price:600 },
+  { id:'t_none', cat:'title', name:'ไม่มีฉายา', title:'', price:0 },
+  { id:'t_rookie', cat:'title', name:'มือใหม่หัดหา', title:'มือใหม่หัดหา', price:50 },
+  { id:'t_eagle', cat:'title', name:'ตาเหยี่ยว', title:'ตาเหยี่ยว', price:200 },
+  { id:'t_bolt', cat:'title', name:'สายฟ้าแลบ', title:'สายฟ้าแลบ', price:400 },
+  { id:'t_boss', cat:'title', name:'เจ้าพ่อตัวเลข', title:'เจ้าพ่อตัวเลข', price:800 },
+  { id:'t_legend', cat:'title', name:'ตำนานงานวัด', title:'ตำนานงานวัด', price:1500 },
+  { id:'s_fair', cat:'skin', name:'คืนงานวัด', skin:'fair', sw:['#1b1442','#ffb627','#fff1cf'], price:0 },
+  { id:'s_chalk', cat:'skin', name:'กระดานดำ', skin:'chalk', sw:['#1f3a33','#f6e27a','#2f584d'], price:200 },
+  { id:'s_sea', cat:'skin', name:'ทะเลอันดามัน', skin:'sea', sw:['#04384d','#ff9d6c','#d8f6f2'], price:300 },
+  { id:'s_paper', cat:'skin', name:'สมุดการบ้าน', skin:'paper', sw:['#f2f4f7','#c9304a','#fdf6c8'], price:300 },
+  { id:'s_neon', cat:'skin', name:'ตู้เกมนีออน', skin:'neon', sw:['#0c0a1f','#ff3fa4','#12305a'], price:500 },
+  { id:'s_gold', cat:'skin', name:'ลายรดน้ำ', skin:'gold', sw:['#170d08','#e5b143','#efcf7d'], price:800 },
+];
+const CATS = [['skin','ธีม'],['avatar','ตัวละคร'],['frame','กรอบรูป'],['title','ฉายา']];
+const DEFAULT_EQ = { avatar:'a_chick', frame:'f_none', title:'t_none', skin:'s_fair' };
+const ACHS = [
+  { id:'first_win', name:'ชนะเกมแรก', coins:50, test:(p)=>p.wins>=1 },
+  { id:'games10', name:'เล่นครบ 10 เกม', coins:100, test:(p)=>p.games>=10 },
+  { id:'wins10', name:'ชนะครบ 10 เกม', coins:200, test:(p)=>p.wins>=10 },
+  { id:'flash', name:'หาเจอภายใน 0.7 วินาที', coins:80, test:(p)=>p.bestMs!=null && p.bestMs<=700 },
+  { id:'streak10', name:'หาเจอติดกัน 10 ครั้งในเกมเดียว', coins:100, test:(p,m)=>m && m.maxStreak>=10 },
+  { id:'flawless', name:'ชนะโดยไม่พลาดเลย', coins:150, test:(p,m)=>m && m.won && m.misses===0 && m.finds>0 },
+  { id:'big', name:'ชนะบนกระดาน 100 ตัวขึ้นไป', coins:150, test:(p,m,g)=>m && m.won && g.n>=100 },
+  { id:'points1000', name:'คะแนนสะสมถึง 1,000', coins:100, test:(p)=>p.points>=1000 },
+];
+const byId = Object.fromEntries(ITEMS.map(i=>[i.id,i]));
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => Number(n).toLocaleString('en-US');
+
+/* ---------- storage ---------- */
+const KEY = 'lailek.v1';
+let S = { profiles:{}, settings:{ players:2, names:['P1','P2','P3','P4'], count:30, time:3, limit:3, shuffle:true }, mute:false, viewer:null };
+(function load(){
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      S.settings = Object.assign(S.settings, d.settings);
+      S.mute = !!d.mute; S.viewer = d.viewer || null;
+      S.profiles = Object.assign(Object.create(null), d.profiles);
+    } else S.profiles = Object.create(null);
+    localStorage.setItem(KEY + '.t', '1');
+  } catch (e) { S.profiles = Object.create(null); $('#storeWarn').hidden = false; }
+})();
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { $('#storeWarn').hidden = false; } }
+
+function profile(name){
+  if (!S.profiles[name]) S.profiles[name] = { name, points:0, coins:0, wins:0, losses:0, games:0, finds:0, misses:0, bestMs:null, owned:[], eq:{...DEFAULT_EQ}, ach:[] };
+  return S.profiles[name];
+}
+const owns = (p,it) => it.price===0 || p.owned.includes(it.id);
+const allProfiles = () => Object.values(S.profiles);
+function avatarHtml(p){
+  const eq = p ? p.eq : DEFAULT_EQ;
+  return `<span class="av ${byId[eq.frame].css}" aria-hidden="true">${byId[eq.avatar].show}</span>`;
+}
+function setSkin(name){
+  const p = name && S.profiles[name];
+  document.documentElement.dataset.skin = p ? byId[p.eq.skin].skin : 'fair';
+}
+
+/* ---------- sound ---------- */
+let ac;
+function beep(freq, dur=.09, type='square', vol=.05){
+  if (S.mute) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + dur);
+    o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime + dur);
+  } catch (e) {}
+}
+
+/* ---------- navigation ---------- */
+function show(view){
+  ['home','rank','shop','game'].forEach(v => $('#'+v).hidden = v!==view);
+  $('#topbar').hidden = view==='game';
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.view===view));
+  if (view==='home') { renderSetup(); setSkin(S.settings.names[0].trim()); }
+  if (view==='rank') { renderRank(); setSkin(S.settings.names[0].trim()); }
+  if (view==='shop') renderShop();
+}
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => show(b.dataset.view));
+
+/* ---------- setup ---------- */
+function seg(id, key, values, min, max, customLabel){
+  const box = $('#seg-'+id), cur = S.settings[key];
+  box.innerHTML = values.map(v => `<button type="button" data-v="${v}" aria-pressed="${v===cur}">${v}</button>`).join('')
+    + (customLabel ? `<input type="number" id="custom-${id}" min="${min}" max="${max}" placeholder="${customLabel}" aria-label="${customLabel} ${min} ถึง ${max}" class="${values.includes(cur)?'':'on'}" value="${values.includes(cur)?'':cur}">` : '');
+  box.querySelectorAll('button').forEach(b => b.onclick = () => {
+    S.settings[key] = +b.dataset.v; save(); renderSetup();
+  });
+  const inp = box.querySelector('input');
+  if (inp) inp.onchange = () => {
+    const v = Math.round(+inp.value);
+    if (!inp.value) return;
+    S.settings[key] = Math.min(max, Math.max(min, v)); save(); renderSetup();
+  };
+}
+function renderSetup(){
+  const st = S.settings;
+  seg('players','players',[2,3,4]);
+  seg('count','count',[20,30,50,100],4,200,'กำหนดเอง');
+  seg('time','time',[3,5,10],1,60,'กำหนดเอง');
+  seg('limit','limit',[3,5],1,20,'กำหนดเอง');
+  $('#shuffle').checked = st.shuffle;
+  $('#known').innerHTML = allProfiles().map(p=>`<option value="${esc(p.name)}"></option>`).join('');
+  $('#names').innerHTML = Array.from({length:st.players},(_,i)=>`
+    <div class="nameRow"><span data-av="${i}">${avatarHtml(S.profiles[st.names[i].trim()])}</span>
+    <input id="name${i}" list="known" maxlength="16" autocomplete="off" aria-label="ชื่อผู้เล่น ${i+1}" placeholder="P${i+1}" value="${esc(st.names[i])}"></div>`).join('');
+  for (let i=0;i<st.players;i++) $('#name'+i).oninput = e => {
+    st.names[i] = e.target.value; save();
+    $(`[data-av="${i}"]`).innerHTML = avatarHtml(S.profiles[e.target.value.trim()]);
+    if (i===0) setSkin(e.target.value.trim());
+  };
+}
+$('#shuffle').onchange = e => { S.settings.shuffle = e.target.checked; save(); };
+$('#setupForm').onsubmit = e => {
+  e.preventDefault();
+  if (document.activeElement && document.activeElement.type==='number') document.activeElement.blur();
+  const st = S.settings;
+  const names = Array.from({length:st.players},(_,i)=>st.names[i].trim() || 'P'+(i+1));
+  const seen = new Set(names.map(n=>n.toLowerCase()));
+  if (seen.size < names.length) { $('#setupErr').textContent = 'ชื่อผู้เล่นซ้ำกัน กรุณาเปลี่ยนให้ไม่เหมือนกัน'; return; }
+  $('#setupErr').textContent = '';
+  startGame(names);
+};
+
+/* ---------- game ---------- */
+let G = null;
+function shuffled(a){ a=[...a]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+function later(fn,ms){ const id=setTimeout(fn,ms); G.waits.push(id); return id; }
+function clearAll(){ if(!G) return; G.waits.forEach(clearTimeout); G.waits=[]; clearInterval(G.tick); }
+
+function startGame(names){
+  clearAll();
+  const st = S.settings;
+  names.forEach(profile); save();
+  G = { n:st.count, time:st.time, limit:st.limit, shuffle:st.shuffle, names,
+    players:names.map(name=>({name,misses:0,points:0,finds:0,streak:0,maxStreak:0,best:null,out:false})),
+    picker:0, finder:null, target:null, phase:'pick', waits:[], tick:null,
+    factor: st.count>=100?2: st.count>=50?1.5:1, slots:[] };
+  setSkin(names[0]);
+  $('#over').hidden = true;
+  show('game');
+  deal();
+  toPick(0);
+}
+function deal(){ G.slots = shuffled(Array.from({length:G.n},(_,i)=>i+1)); G.look = {}; G.slots.forEach(v=>G.look[v]={r:(Math.random()*12-6).toFixed(1),s:.85+Math.random()*.35,c:1+Math.floor(Math.random()*3)}); renderBoard(); }
+function renderBoard(){
+  $('#board').innerHTML = G.slots.map(v => v==null ? `<span class="tile gone"></span>` :
+    `<button type="button" class="tile c${G.look[v].c}" data-n="${v}" style="--r:${G.look[v].r}deg">${v}</button>`).join('');
+  layoutBoard();
+}
+function layoutBoard(){
+  if (!G) return;
+  const b = $('#board'), W = b.clientWidth, H = b.clientHeight, N = G.slots.length;
+  if (!W || !H) return;
+  let best = 1, bestS = 0;
+  for (let c=1;c<=N;c++){ const r=Math.ceil(N/c), s=Math.min((W-(c-1)*4)/c,(H-(r-1)*4)/r); if(s>bestS){bestS=s;best=c;} }
+  const rows = Math.ceil(N/best);
+  b.style.gridTemplateColumns = `repeat(${best},minmax(0,1fr))`;
+  b.style.gridTemplateRows = `repeat(${rows},minmax(0,1fr))`;
+  const cw = (W-(best-1)*4)/best, ch = (H-(rows-1)*4)/rows, d = String(G.n).length;
+  const base = Math.min(cw/(Math.max(d,2)*.62)/1.2, ch*.62);
+  b.querySelectorAll('.tile[data-n]').forEach(t => t.style.fontSize = (base*G.look[t.dataset.n].s).toFixed(1)+'px');
+}
+new ResizeObserver(layoutBoard).observe($('#board'));
+
+function renderPlayers(){
+  $('#gbar').innerHTML = G.players.map((m,i)=>{
+    const p = S.profiles[m.name];
+    const pips = G.limit<=6 ? `<span class="pips" aria-label="พลาด ${m.misses} จาก ${G.limit}">${'✕'.repeat(m.misses)}<i>${'✕'.repeat(G.limit-m.misses)}</i></span>` : `พลาด ${m.misses}/${G.limit}`;
+    const on = (G.phase==='pick'&&G.picker===i) || (G.phase!=='pick'&&G.finder===i);
+    return `<div class="pcard ${on?'turn':''} ${m.out?'out':''}">${avatarHtml(p)}<div class="pinfo"><div class="pname">${esc(m.name)}</div><div class="pmeta">${pips} · ${fmt(m.points)} คะแนน</div></div></div>`;
+  }).join('');
+}
+function nextAlive(i){ const k=G.players.length; for(let s=1;s<=k;s++){const j=(i+s)%k; if(!G.players[j].out) return j;} return i; }
+function setCall(html, target, clock=''){
+  $('#callText').innerHTML = html;
+  $('#target').hidden = target==null; if(target!=null) $('#target').textContent = target;
+  $('#clock').textContent = clock; $('#clock').classList.remove('low');
+}
+function toPick(i){
+  G.phase='pick'; G.picker=i; G.finder=nextAlive(i); G.target=null;
+  $('#bar').hidden = true;
+  $('#board').classList.remove('wait');
+  setCall(`<b>${esc(G.players[i].name)}</b> กดเลือกเลข ให้ <b>${esc(G.players[G.finder].name)}</b> หา`);
+  renderPlayers();
+}
+function pick(n){
+  G.target=n; G.phase='ready';
+  beep(520);
+  if (G.shuffle) G.slots = shuffled(G.slots);
+  $('#board').classList.add('wait');
+  renderBoard();
+  setCall(`<b>${esc(G.players[G.finder].name)}</b> เตรียมหา...`);
+  renderPlayers();
+  later(startFind, 900);
+}
+function startFind(){
+  G.phase='find';
+  $('#board').classList.remove('wait');
+  setCall(`<b>${esc(G.players[G.finder].name)}</b> หาเลขนี้`, G.target);
+  const bar=$('#bar'); bar.hidden=false; bar.classList.remove('low');
+  const total=G.time*1000, t0=performance.now(); G.t0=t0; let lastSec=null;
+  clearInterval(G.tick);
+  G.tick=setInterval(()=>{
+    const left=total-(performance.now()-t0);
+    if(left<=0){ clearInterval(G.tick); timeUp(); return; }
+    const low=left<=Math.min(1000,total/3);
+    bar.style.transform=`scaleX(${left/total})`; bar.classList.toggle('low',low);
+    $('#clock').textContent=(left/1000).toFixed(1); $('#clock').classList.toggle('low',low);
+    const sec=Math.ceil(left/1000);
+    if(sec!==lastSec){ lastSec=sec; if(sec<=3) beep(sec===1?880:660,.05); }
+  },40);
+}
+function removeTarget(){ G.slots[G.slots.indexOf(G.target)]=null; }
+function tileOf(n){ return $(`#board .tile[data-n="${n}"]`); }
+function found(el){
+  clearInterval(G.tick); G.phase='reveal';
+  const ms=performance.now()-G.t0, sec=ms/1000, m=G.players[G.finder];
+  const pts=Math.round((10+Math.max(0,10-3*sec))*G.factor);
+  m.points+=pts; m.finds++; m.streak++; m.maxStreak=Math.max(m.maxStreak,m.streak);
+  if(m.best==null||ms<m.best) m.best=ms;
+  el.classList.add('hit'); beep(990,.12,'triangle',.09);
+  setCall(`<b>${esc(m.name)}</b> เจอใน ${sec.toFixed(2)} วินาที +${pts} คะแนน`, G.target);
+  $('#bar').hidden=true;
+  renderPlayers();
+  removeTarget();
+  later(()=>afterTurn(G.finder), 650);
+}
+function timeUp(){
+  G.phase='reveal';
+  const m=G.players[G.finder]; m.misses++; m.streak=0;
+  const el=tileOf(G.target); if(el) el.classList.add('missed');
+  beep(170,.32,'sawtooth',.08);
+  $('#bar').hidden=true;
+  const out=m.misses>=G.limit; if(out) m.out=true;
+  setCall(`<b>${esc(m.name)}</b> หาไม่ทัน พลาด ${m.misses}/${G.limit}${out?' ตกรอบ':''}`, G.target);
+  renderPlayers();
+  later(()=>afterTurn(G.finder), 1300);
+}
+function afterTurn(i){
+  const alive=G.players.filter(m=>!m.out);
+  if(alive.length<=1){ endGame(alive[0]); return; }
+  if(G.slots.every(v=>v==null)) deal(); else renderBoard();
+  toPick(G.players[i].out?nextAlive(i):i);
+}
+$('#board').onclick = e => {
+  const t=e.target.closest('.tile[data-n]'); if(!t||!G) return;
+  const n=+t.dataset.n;
+  if(G.phase==='pick') pick(n);
+  else if(G.phase==='find'){
+    if(n===G.target) found(t);
+    else { t.classList.remove('nope'); void t.offsetWidth; t.classList.add('nope'); beep(240,.06); }
+  }
+};
+
+function endGame(winner){
+  clearAll(); G.phase='over';
+  const rows=G.players.map(m=>{
+    const p=profile(m.name), won=m===winner;
+    const earn=m.points+10+(won?50*(G.players.length-1):0);
+    p.points+=earn; p.coins+=earn; p.games++; p[won?'wins':'losses']++;
+    p.finds+=m.finds; p.misses+=m.misses;
+    if(m.best!=null&&(p.bestMs==null||m.best<p.bestMs)) p.bestMs=Math.round(m.best);
+    const ctx={won,misses:m.misses,finds:m.finds,maxStreak:m.maxStreak};
+    const got=ACHS.filter(a=>!p.ach.includes(a.id)&&a.test(p,ctx,G));
+    got.forEach(a=>{p.ach.push(a.id);p.coins+=a.coins;});
+    return {m,p,won,earn,got};
+  }).sort((a,b)=>b.won-a.won||b.earn-a.earn);
+  save();
+  beep(660,.12,'triangle',.09); setTimeout(()=>beep(880,.2,'triangle',.09),130);
+  $('#sheet').innerHTML=`
+    <h2>${esc(winner.name)} ชนะ</h2>
+    <div class="rows">${rows.map(r=>`
+      <div class="row">${avatarHtml(r.p)}
+        <div class="grow"><div class="pname">${esc(r.m.name)}</div>
+          <div class="pmeta">เจอ ${r.m.finds} ครั้ง · พลาด ${r.m.misses} ครั้ง${r.m.best!=null?` · เร็วสุด ${(r.m.best/1000).toFixed(2)} วินาที`:''}</div>
+          ${r.got.map(a=>`<div class="unlock">ปลดล็อก: ${a.name} +${a.coins} เหรียญ</div>`).join('')}
+        </div>
+        <b>+${fmt(r.earn)}</b>
+      </div>`).join('')}</div>
+    <p class="note">คะแนนที่ได้รวมเข้าอันดับ และได้รับเป็นเหรียญไว้แลกไอเท็ม</p>
+    <div class="btns">
+      <button class="go" id="againBtn" type="button">เล่นอีกครั้ง</button>
+      <button class="ghost" id="toShopBtn" type="button">แลกรางวัล</button>
+      <button class="ghost" id="toHomeBtn" type="button">กลับเมนู</button>
+    </div>`;
+  $('#over').hidden=false;
+  const names=G.names;
+  $('#againBtn').onclick=()=>startGame(names);
+  $('#toShopBtn').onclick=()=>{ S.viewer=winner.name; $('#over').hidden=true; G=null; show('shop'); };
+  $('#toHomeBtn').onclick=()=>{ $('#over').hidden=true; G=null; show('home'); };
+  $('#againBtn').focus();
+}
+function renderMute(){ $('#muteBtn').textContent = S.mute?'เปิดเสียง':'ปิดเสียง'; }
+$('#muteBtn').onclick=()=>{ S.mute=!S.mute; save(); renderMute(); };
+renderMute();
+$('#quitBtn').onclick=e=>{
+  const b=e.currentTarget;
+  if(b.dataset.armed){ clearAll(); G=null; delete b.dataset.armed; b.textContent='ออกจากเกม'; show('home'); return; }
+  b.dataset.armed='1'; b.textContent='กดอีกครั้งเพื่อออก (ไม่นับคะแนน)';
+  setTimeout(()=>{ delete b.dataset.armed; b.textContent='ออกจากเกม'; },3000);
+};
+
+/* ---------- ranking ---------- */
+let rankBy='points';
+function renderRank(){
+  const opts=[['points','คะแนน'],['wins','ชนะ'],['best','เร็วสุด']];
+  $('#rankSort').innerHTML=opts.map(([k,l])=>`<button type="button" data-k="${k}" aria-pressed="${k===rankBy}">${l}</button>`).join('');
+  $('#rankSort').querySelectorAll('button').forEach(b=>b.onclick=()=>{rankBy=b.dataset.k;renderRank();});
+  const list=allProfiles().filter(p=>p.games>0);
+  if(!list.length){ $('#rankBody').innerHTML=`<div class="empty">ยังไม่มีอันดับ เล่นให้จบหนึ่งเกมแล้วชื่อของทุกคนจะขึ้นที่นี่</div>`; return; }
+  list.sort((a,b)=> rankBy==='wins'? b.wins-a.wins||b.points-a.points : rankBy==='best'? (a.bestMs??1e9)-(b.bestMs??1e9) : b.points-a.points);
+  $('#rankBody').innerHTML=`<div class="tblWrap"><table>
+    <thead><tr><th>#</th><th>ผู้เล่น</th><th>คะแนน</th><th>ชนะ</th><th>แพ้</th><th>อัตราชนะ</th><th>เร็วสุด</th></tr></thead>
+    <tbody>${list.map((p,i)=>`<tr class="${i===0?'p1':''}"><td>${i+1}</td>
+      <td><div class="who">${avatarHtml(p)}<div>${esc(p.name)}${byId[p.eq.title].title?`<small>${byId[p.eq.title].title}</small>`:''}</div></div></td>
+      <td>${fmt(p.points)}</td><td>${p.wins}</td><td>${p.losses}</td><td>${Math.round(p.wins/p.games*100)}%</td>
+      <td>${p.bestMs!=null?(p.bestMs/1000).toFixed(2)+' วิ':'-'}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+/* ---------- shop ---------- */
+function itemShow(it){
+  if(it.cat==='avatar') return `<span class="big">${it.show}</span>`;
+  if(it.cat==='frame') return `<span class="av ${it.css}"></span>`;
+  if(it.cat==='title') return `<span class="ttl">${it.title||'-'}</span>`;
+  return it.sw.map(c=>`<span class="sw" style="background:${c}"></span>`).join('');
+}
+function renderShop(){
+  const list=allProfiles();
+  const body=$('#shopBody');
+  if(!list.length){ setSkin(null); body.innerHTML=`<div class="hd"><h2>แลกรางวัล</h2></div><div class="empty">ยังไม่มีผู้เล่น ตั้งชื่อแล้วกดเริ่มเกมในหน้าเล่น จะได้เหรียญเมื่อเล่นจบเกม</div>`; return; }
+  if(!S.viewer||!S.profiles[S.viewer]) S.viewer=S.profiles[S.settings.names[0].trim()]?S.settings.names[0].trim():list[0].name;
+  const p=S.profiles[S.viewer];
+  setSkin(p.name);
+  body.innerHTML=`
+    <div class="hd">
+      <div class="who">${avatarHtml(p)}<select id="viewer" aria-label="เลือกผู้เล่น">${list.map(x=>`<option value="${esc(x.name)}"${x===p?' selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
+      <div class="wallet">${fmt(p.coins)} เหรียญ</div>
+    </div>
+    ${CATS.map(([cat,label])=>`<section><h3 class="sect">${label}</h3><div class="items">${ITEMS.filter(i=>i.cat===cat).map(it=>{
+      const have=owns(p,it), on=p.eq[cat]===it.id;
+      const btn= on?`<button type="button" disabled>ใช้อยู่</button>`
+        : have?`<button type="button" data-use="${it.id}">ใช้</button>`
+        : `<button type="button" class="buy" data-buy="${it.id}"${p.coins<it.price?' disabled':''}>แลก ${fmt(it.price)}</button>`;
+      return `<div class="item ${on?'on':''}"><div class="show">${itemShow(it)}</div><div class="nm">${it.name}</div>${btn}</div>`;
+    }).join('')}</div></section>`).join('')}
+    <section><h3 class="sect">ของรางวัลจากความสำเร็จ</h3><div class="achs">${ACHS.map(a=>`<div class="ach ${p.ach.includes(a.id)?'done':''}"><span>${a.name}</span><span>+${a.coins}</span></div>`).join('')}</div></section>`;
+  $('#viewer').onchange=e=>{S.viewer=e.target.value;save();renderShop();};
+  body.querySelectorAll('[data-use]').forEach(b=>b.onclick=()=>{const it=byId[b.dataset.use];p.eq[it.cat]=it.id;save();renderShop();});
+  body.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{
+    const it=byId[b.dataset.buy]; if(p.coins<it.price||owns(p,it)) return;
+    p.coins-=it.price; p.owned.push(it.id); p.eq[it.cat]=it.id; save(); beep(990,.12,'triangle',.09); renderShop();
+  });
+}
+
+show('home');
+</script>
