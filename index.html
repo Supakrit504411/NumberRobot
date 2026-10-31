@@ -95,9 +95,7 @@ h1, h2, h3, p { margin: 0; }
 .bar.low { background: var(--bad); }
 .board { flex: 1; min-height: 0; display: grid; gap: 4px; transition: filter .15s; }
 .board.wait { filter: blur(9px); pointer-events: none; }
-.tile { min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 6px; background: var(--tile1); color: var(--tile-ink); font-family: var(--f-num); font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; transform: rotate(var(--r)); box-shadow: inset 0 0 0 1px rgba(0,0,0,.14), 0 1px 0 rgba(0,0,0,.28); }
-.tile.c2 { background: var(--tile2); }
-.tile.c3 { background: var(--tile3); }
+.tile { min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 6px; background: var(--pat, var(--tile1)); color: var(--tile-ink); font-family: var(--f-num); font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; transform: rotate(var(--r)); box-shadow: inset 0 0 0 1px rgba(0,0,0,.14), 0 1px 0 rgba(0,0,0,.28); }
 .tile:hover { filter: brightness(1.08); }
 .tile.gone { visibility: hidden; }
 .tile.hit { background: var(--good); color: #06281a; animation: pop .45s ease-out forwards; }
@@ -203,7 +201,11 @@ select option { background: var(--bg2); color: var(--ink); }
             <span class="hint">ใช้ชื่อเดิมเพื่อเก็บคะแนนและไอเท็มต่อจากครั้งก่อน</span>
           </div>
           <div class="field">
-            <span class="label">จำนวนตัวเลขบนกระดาน</span>
+            <span class="label">สุ่มจาก</span>
+            <div class="seg" id="seg-mode"></div>
+          </div>
+          <div class="field">
+            <span class="label">จำนวนตัวบนกระดาน</span>
             <div class="seg" id="seg-count"></div>
           </div>
           <div class="field">
@@ -217,7 +219,7 @@ select option { background: var(--bg2); color: var(--ink); }
           <div class="field">
             <label class="check" for="shuffle">
               <input type="checkbox" id="shuffle">
-              <span>สลับตำแหน่งตัวเลขทุกครั้งหลังเลือก<br><span class="hint">คนหาจะไม่รู้ตำแหน่งจากการดูคนเลือกกด</span></span>
+              <span>สลับตำแหน่งทุกครั้งหลังเลือก<br><span class="hint">คนหาจะไม่รู้ตำแหน่งจากการดูคนเลือกกด</span></span>
             </label>
           </div>
           <p class="err" id="setupErr" role="alert"></p>
@@ -226,10 +228,10 @@ select option { background: var(--bg2); color: var(--ink); }
         <aside class="how">
           <h2>วิธีเล่น</h2>
           <ol>
-            <li>ผู้เล่นคนแรกกดเลขใดก็ได้บนกระดาน</li>
-            <li>คนถัดไปต้องหาเลขนั้นให้เจอก่อนหมดเวลา กดผิดไม่เสียแต้ม แต่เวลายังเดินต่อ</li>
-            <li>หาเจอทันเวลา เลขนั้นจะออกจากกระดาน ถ้าหาไม่ทันนับเป็นพลาด 1 ครั้ง และเลขยังอยู่บนกระดาน</li>
-            <li>คนหาได้เป็นคนเลือกเลขในตาถัดไป ถ้าเลขหมดจะสุ่มกระดานใหม่</li>
+            <li>ผู้เล่นคนแรกกดเลขหรือตัวอักษรใดก็ได้บนกระดาน</li>
+            <li>คนถัดไปต้องหาตัวนั้นให้เจอก่อนหมดเวลา กดผิดไม่เสียแต้ม แต่เวลายังเดินต่อ ลายพื้นหลังเปลี่ยนใหม่ทุกครั้ง จึงจำจากสีไม่ได้</li>
+            <li>หาเจอทันเวลา ตัวนั้นจะออกจากกระดาน ถ้าหาไม่ทันนับเป็นพลาด 1 ครั้ง และตัวนั้นยังอยู่บนกระดาน</li>
+            <li>คนหาได้เป็นคนเลือกในตาถัดไป ถ้ากระดานหมดจะสุ่มกระดานใหม่</li>
             <li>ใครหาไม่ทันครบตามที่ตั้งไว้จะตกรอบ คนสุดท้ายที่เหลืออยู่ชนะ</li>
           </ol>
         </aside>
@@ -310,6 +312,11 @@ const ACHS = [
   { id:'big', name:'ชนะบนกระดาน 100 ตัวขึ้นไป', coins:150, test:(p,m,g)=>m && m.won && g.n>=100 },
   { id:'points1000', name:'คะแนนสะสมถึง 1,000', coins:100, test:(p)=>p.points>=1000 },
 ];
+const MODES = {
+  num:{ label:'ตัวเลข', word:'เลข', key:'count', presets:[20,30,50,100], max:200 },
+  th:{ label:'ก-ฮ', word:'ตัวอักษร', key:'countTh', presets:[10,20,30,44], max:44, chars:[...'กขฃคฅฆงจฉชซฌญฎฏฐฑฒณดตถทธนบปผฝพฟภมยรลวศษสหฬอฮ'] },
+  en:{ label:'A-Z', word:'ตัวอักษร', key:'countEn', presets:[10,15,20,26], max:26, chars:[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'] },
+};
 const byId = Object.fromEntries(ITEMS.map(i=>[i.id,i]));
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -317,7 +324,7 @@ const fmt = n => Number(n).toLocaleString('en-US');
 
 /* ---------- storage ---------- */
 const KEY = 'lailek.v1';
-let S = { profiles:{}, settings:{ players:2, names:['P1','P2','P3','P4'], count:30, time:3, limit:3, shuffle:true }, mute:false, viewer:null };
+let S = { profiles:{}, settings:{ players:2, names:['P1','P2','P3','P4'], mode:'num', count:30, countTh:44, countEn:26, time:3, limit:3, shuffle:true }, mute:false, viewer:null };
 (function load(){
   try {
     const raw = localStorage.getItem(KEY);
@@ -390,7 +397,10 @@ function seg(id, key, values, min, max, customLabel){
 function renderSetup(){
   const st = S.settings;
   seg('players','players',[2,3,4]);
-  seg('count','count',[20,30,50,100],4,200,'กำหนดเอง');
+  $('#seg-mode').innerHTML = Object.entries(MODES).map(([k,m])=>`<button type="button" data-k="${k}" aria-pressed="${k===st.mode}">${m.label}</button>`).join('');
+  $('#seg-mode').querySelectorAll('button').forEach(b => b.onclick = () => { st.mode = b.dataset.k; save(); renderSetup(); });
+  const md = MODES[st.mode];
+  seg('count',md.key,md.presets,4,md.max,'กำหนดเอง');
   seg('time','time',[3,5,10],1,60,'กำหนดเอง');
   seg('limit','limit',[3,5],1,20,'กำหนดเอง');
   $('#shuffle').checked = st.shuffle;
@@ -426,20 +436,50 @@ function startGame(names){
   clearAll();
   const st = S.settings;
   names.forEach(profile); save();
-  G = { n:st.count, time:st.time, limit:st.limit, shuffle:st.shuffle, names,
+  const md = MODES[st.mode], n = st[md.key];
+  G = { n, chars:md.chars, word:md.word, syms:null, time:st.time, limit:st.limit, shuffle:st.shuffle, names,
     players:names.map(name=>({name,misses:0,points:0,finds:0,streak:0,maxStreak:0,best:null,out:false})),
     picker:0, finder:null, target:null, phase:'pick', waits:[], tick:null,
-    factor: st.count>=100?2: st.count>=50?1.5:1, slots:[] };
+    factor: n>=100?2: n>=50?1.5:1, slots:[] };
   setSkin(names[0]);
   $('#over').hidden = true;
   show('game');
   deal();
   toPick(0);
 }
-function deal(){ G.slots = shuffled(Array.from({length:G.n},(_,i)=>i+1)); G.look = {}; G.slots.forEach(v=>G.look[v]={r:(Math.random()*12-6).toFixed(1),s:.85+Math.random()*.35,c:1+Math.floor(Math.random()*3)}); renderBoard(); }
-function renderBoard(){
-  $('#board').innerHTML = G.slots.map(v => v==null ? `<span class="tile gone"></span>` :
-    `<button type="button" class="tile c${G.look[v].c}" data-n="${v}" style="--r:${G.look[v].r}deg">${v}</button>`).join('');
+const rand = (a,b) => a+Math.random()*(b-a);
+const sym = v => G.syms ? G.syms[v-1] : v;
+const decoy = () => G.chars ? G.chars[Math.floor(Math.random()*G.chars.length)] : 1+Math.floor(Math.random()*G.n);
+/* Tile ink must stay readable, so every pattern only mixes the skin's three tile tones. */
+function tilePattern(){
+  const [a,b] = shuffled(['var(--tile1)','var(--tile2)','var(--tile3)']);
+  const ang = Math.floor(rand(0,360)), x = Math.floor(rand(10,90)), y = Math.floor(rand(10,90)), s = Math.floor(rand(5,13));
+  return [
+    a,
+    `linear-gradient(${ang}deg,${a},${b})`,
+    `linear-gradient(${ang}deg,${a} 50%,${b} 50%)`,
+    `repeating-linear-gradient(${ang}deg,${a} 0 ${s}px,${b} ${s}px ${s*2}px)`,
+    `radial-gradient(circle at ${x}% ${y}%,${b} 0 ${Math.floor(rand(25,60))}%,${a} 0)`,
+    `conic-gradient(from ${ang}deg at ${x}% ${y}%,${a},${b},${a})`,
+    `radial-gradient(${b} 30%,transparent 33%) 0 0/${s*2}px ${s*2}px,${a}`,
+    `repeating-conic-gradient(${a} 0 25%,${b} 0 50%) 0 0/${s*2}px ${s*2}px`,
+  ][Math.floor(rand(0,8))];
+}
+const makeLook = () => ({ r:rand(-6,6).toFixed(1), s:rand(.85,1.2).toFixed(2), pat:tilePattern() });
+function rollLook(){ G.look = {}; G.slots.forEach(v=>{ if(v!=null) G.look[v]=makeLook(); }); }
+function deal(){
+  G.syms = G.chars ? shuffled(G.chars).slice(0,G.n) : null;
+  G.slots = shuffled(Array.from({length:G.n},(_,i)=>i+1));
+  rollLook(); renderBoard();
+}
+/* masked: while the board is blurred it shows decoys only, so nothing seen through the blur carries over. */
+function renderBoard(masked){
+  $('#board').innerHTML = G.slots.map(v => {
+    if (v==null) return `<span class="tile gone"></span>`;
+    const l = masked ? makeLook() : G.look[v];
+    const attrs = masked ? 'disabled' : `data-n="${v}"`;
+    return `<button type="button" class="tile" ${attrs} data-s="${l.s}" style="--r:${l.r}deg;--pat:${l.pat}">${masked ? decoy() : sym(v)}</button>`;
+  }).join('');
   layoutBoard();
 }
 function layoutBoard(){
@@ -453,7 +493,7 @@ function layoutBoard(){
   b.style.gridTemplateRows = `repeat(${rows},minmax(0,1fr))`;
   const cw = (W-(best-1)*4)/best, ch = (H-(rows-1)*4)/rows, d = String(G.n).length;
   const base = Math.min(cw/(Math.max(d,2)*.62)/1.2, ch*.62);
-  b.querySelectorAll('.tile[data-n]').forEach(t => t.style.fontSize = (base*G.look[t.dataset.n].s).toFixed(1)+'px');
+  b.querySelectorAll('.tile[data-s]').forEach(t => t.style.fontSize = (base*t.dataset.s).toFixed(1)+'px');
 }
 new ResizeObserver(layoutBoard).observe($('#board'));
 
@@ -468,14 +508,14 @@ function renderPlayers(){
 function nextAlive(i){ const k=G.players.length; for(let s=1;s<=k;s++){const j=(i+s)%k; if(!G.players[j].out) return j;} return i; }
 function setCall(html, target, clock=''){
   $('#callText').innerHTML = html;
-  $('#target').hidden = target==null; if(target!=null) $('#target').textContent = target;
+  $('#target').hidden = target==null; if(target!=null) $('#target').textContent = sym(target);
   $('#clock').textContent = clock; $('#clock').classList.remove('low');
 }
 function toPick(i){
   G.phase='pick'; G.picker=i; G.finder=nextAlive(i); G.target=null;
   $('#bar').hidden = true;
   $('#board').classList.remove('wait');
-  setCall(`<b>${esc(G.players[i].name)}</b> กดเลือกเลข ให้ <b>${esc(G.players[G.finder].name)}</b> หา`);
+  setCall(`<b>${esc(G.players[i].name)}</b> กดเลือก${G.word} ให้ <b>${esc(G.players[G.finder].name)}</b> หา`);
   renderPlayers();
 }
 function pick(n){
@@ -483,15 +523,17 @@ function pick(n){
   beep(520);
   if (G.shuffle) G.slots = shuffled(G.slots);
   $('#board').classList.add('wait');
-  renderBoard();
+  renderBoard(true);
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) [225,450,675].forEach(ms => later(()=>renderBoard(true), ms));
   setCall(`<b>${esc(G.players[G.finder].name)}</b> เตรียมหา...`);
   renderPlayers();
   later(startFind, 900);
 }
 function startFind(){
   G.phase='find';
+  rollLook(); renderBoard();
   $('#board').classList.remove('wait');
-  setCall(`<b>${esc(G.players[G.finder].name)}</b> หาเลขนี้`, G.target);
+  setCall(`<b>${esc(G.players[G.finder].name)}</b> หา${G.word}นี้`, G.target);
   const bar=$('#bar'); bar.hidden=false; bar.classList.remove('low');
   const total=G.time*1000, t0=performance.now(); G.t0=t0; let lastSec=null;
   clearInterval(G.tick);
