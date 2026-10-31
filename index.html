@@ -57,6 +57,10 @@ h1, h2, h3, p { margin: 0; }
 .names { display: grid; gap: 8px; }
 .nameRow { display: flex; align-items: center; gap: 10px; }
 .nameRow input { flex: 1; min-width: 0; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg2); }
+.nameRow .pin { flex: 0 0 76px; width: 76px; text-align: center; }
+.auth { flex: none; display: flex; align-items: center; gap: 6px; }
+.online { color: var(--good); font-size: 14px; font-weight: 500; }
+.auth .ghost { padding: 4px 10px; font-size: 14px; }
 .check { display: flex; gap: 10px; align-items: flex-start; }
 .check input { width: 20px; height: 20px; margin-top: 3px; accent-color: var(--accent); }
 .go { width: 100%; padding: 14px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font: 400 22px/1.3 var(--f-display); }
@@ -198,7 +202,7 @@ select option { background: var(--bg2); color: var(--ink); }
             <label class="label" for="name0">ชื่อผู้เล่น</label>
             <div class="names" id="names"></div>
             <datalist id="known"></datalist>
-            <span class="hint">ใช้ชื่อเดิมเพื่อเก็บคะแนนและไอเท็มต่อจากครั้งก่อน</span>
+            <span class="hint">ใส่ PIN 4 หลักเพื่อเก็บคะแนนและไอเท็มออนไลน์ เข้าจากเครื่องไหนก็ได้ด้วยชื่อและ PIN เดิม ชื่อใหม่จะใช้ PIN นี้ตั้งบัญชีทันที จึงควรจำให้ดี เพราะยังไม่มีวิธีกู้ PIN เว้นว่างไว้ถ้าจะเก็บเฉพาะในเครื่องนี้</span>
           </div>
           <div class="field">
             <span class="label">สุ่มจาก</span>
@@ -246,7 +250,8 @@ select option { background: var(--bg2); color: var(--ink); }
         <div class="seg" id="rankSort"></div>
       </div>
       <div id="rankBody"></div>
-      <p class="note">หาเจอได้ 10 คะแนน บวกโบนัสความเร็วสูงสุด 10 คะแนน กระดาน 50 ตัวขึ้นไปคูณ 1.5 และกระดาน 100 ตัวขึ้นไปคูณ 2 จบเกมได้อีก 10 คะแนน ผู้ชนะได้เพิ่ม 50 คะแนนต่อคู่แข่งหนึ่งคน ออกกลางเกมจะไม่นับคะแนน ข้อมูลเก็บไว้ในเครื่องนี้เท่านั้น</p>
+      <p class="note">หาเจอได้ 10 คะแนน บวกโบนัสความเร็วสูงสุด 10 คะแนน กระดาน 50 ตัวขึ้นไปคูณ 1.5 และกระดาน 100 ตัวขึ้นไปคูณ 2 จบเกมได้อีก 10 คะแนน ผู้ชนะได้เพิ่ม 50 คะแนนต่อคู่แข่งหนึ่งคน ออกกลางเกมจะไม่นับคะแนน ผู้เล่นที่ใช้ PIN จะอยู่ในอันดับรวมออนไลน์ ส่วนผู้เล่นที่ไม่ใช้ PIN จะเห็นเฉพาะในเครื่องนี้</p>
+      <p class="note" id="rankOff" hidden>เชื่อมต่อไม่ได้ในตอนนี้ อันดับอาจไม่เป็นปัจจุบัน</p>
     </div>
   </main>
 
@@ -324,7 +329,7 @@ const fmt = n => Number(n).toLocaleString('en-US');
 
 /* ---------- storage ---------- */
 const KEY = 'lailek.v1';
-let S = { profiles:{}, settings:{ players:2, names:['P1','P2','P3','P4'], mode:'num', count:30, countTh:44, countEn:26, time:3, limit:3, shuffle:true }, mute:false, viewer:null };
+let S = { profiles:{}, settings:{ players:2, names:['P1','P2','P3','P4'], mode:'num', count:30, countTh:44, countEn:26, time:3, limit:3, shuffle:true }, mute:false, viewer:null, sess:Object.create(null), dirty:Object.create(null) };
 (function load(){
   try {
     const raw = localStorage.getItem(KEY);
@@ -333,15 +338,60 @@ let S = { profiles:{}, settings:{ players:2, names:['P1','P2','P3','P4'], mode:'
       S.settings = Object.assign(S.settings, d.settings);
       S.mute = !!d.mute; S.viewer = d.viewer || null;
       S.profiles = Object.assign(Object.create(null), d.profiles);
+      Object.assign(S.sess, d.sess); Object.assign(S.dirty, d.dirty);
     } else S.profiles = Object.create(null);
     localStorage.setItem(KEY + '.t', '1');
   } catch (e) { S.profiles = Object.create(null); $('#storeWarn').hidden = false; }
 })();
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { $('#storeWarn').hidden = false; } }
 
+const newProfile = name => ({ name, points:0, coins:0, wins:0, losses:0, games:0, finds:0, misses:0, bestMs:null, owned:[], eq:{...DEFAULT_EQ}, ach:[] });
 function profile(name){
-  if (!S.profiles[name]) S.profiles[name] = { name, points:0, coins:0, wins:0, losses:0, games:0, finds:0, misses:0, bestMs:null, owned:[], eq:{...DEFAULT_EQ}, ach:[] };
+  if (!S.profiles[name]) S.profiles[name] = newProfile(name);
   return S.profiles[name];
+}
+/* Equipped ids can come from other players' cloud data, so only ids from ITEMS are ever used. */
+function cleanEq(eq){
+  const out = {...DEFAULT_EQ};
+  Object.keys(DEFAULT_EQ).forEach(c => { const id = eq && eq[c]; if (ITEMS.some(i=>i.id===id && i.cat===c)) out[c] = id; });
+  return out;
+}
+
+/* ---------- cloud sync: S.sess holds a session token per player, never the PIN ---------- */
+const CLOUD_URL = 'https://sgkapdbnnnuwkmyxvkqr.supabase.co/rest/v1/rpc/';
+const CLOUD_KEY = 'sb_publishable_xagUhkigHoIeK-9iJK0gSw_js6NvrAI';
+async function rpc(fn, args={}, ms=8000){
+  const res = await fetch(CLOUD_URL+fn, { method:'POST', signal:AbortSignal.timeout(ms),
+    headers:{ apikey:CLOUD_KEY, 'Content-Type':'application/json' }, body:JSON.stringify(args) });
+  if (!res.ok) throw new Error(fn+' '+res.status);
+  return res.status===204 ? null : res.json();
+}
+function toData({name, ...data}){ return data; }
+function adopt(name, data){
+  const p = {...newProfile(name), ...data, name};
+  p.eq = cleanEq(p.eq);
+  if (!Array.isArray(p.owned)) p.owned = [];
+  if (!Array.isArray(p.ach)) p.ach = [];
+  S.profiles[name] = p;
+}
+async function pushProfile(name, ms){
+  if (!S.sess[name]) return;
+  const mark = S.dirty[name] = S.dirty[name] || Date.now();
+  save();
+  const ok = await rpc('ll_save', { p_token:S.sess[name], p_data:toData(S.profiles[name]) }, ms);
+  if (!ok) delete S.sess[name];
+  if (S.dirty[name]===mark) delete S.dirty[name];
+  save();
+}
+function changed(name){ if (S.sess[name]) { S.dirty[name] = Date.now(); pushProfile(name).catch(()=>{}); } }
+async function syncOne(name, ms){
+  if (S.dirty[name]) return pushProfile(name, ms);
+  const r = await rpc('ll_pull', { p_token:S.sess[name] }, ms);
+  if (!r) { delete S.sess[name]; return; }
+  if (!S.dirty[name]) adopt(name, r.data);
+}
+function syncAll(ms=3000){
+  return Promise.all(Object.keys(S.sess).map(n => syncOne(n, ms).catch(()=>{}))).then(save);
 }
 const owns = (p,it) => it.price===0 || p.owned.includes(it.id);
 const allProfiles = () => Object.values(S.profiles);
@@ -375,11 +425,32 @@ function show(view){
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.view===view));
   if (view==='home') { renderSetup(); setSkin(S.settings.names[0].trim()); }
   if (view==='rank') { renderRank(); setSkin(S.settings.names[0].trim()); }
-  if (view==='shop') renderShop();
+  if (view==='shop') { renderShop(); syncAll().then(()=>{ if(!$('#shop').hidden) renderShop(); }); }
 }
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => show(b.dataset.view));
 
 /* ---------- setup ---------- */
+const pins = ['','','',''];
+function renderAuth(i){
+  const name = S.settings.names[i].trim(), box = $(`[data-auth="${i}"]`);
+  if (S.sess[name]) {
+    box.innerHTML = `<span class="online">ออนไลน์</span><button type="button" class="ghost">ออก</button>`;
+    box.querySelector('button').onclick = () => logout(name);
+  } else {
+    box.innerHTML = `<input class="pin" id="pin${i}" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="PIN" aria-label="PIN ผู้เล่น ${i+1}" value="${esc(pins[i])}">`;
+    box.querySelector('input').oninput = e => { pins[i] = e.target.value; };
+  }
+}
+/* Leaving removes the local copy, so the next person on a shared device cannot spend from it. */
+async function logout(name){
+  try { if (S.dirty[name]) await pushProfile(name); }
+  catch (e) { $('#setupErr').textContent = 'ยังส่งข้อมูลล่าสุดไม่สำเร็จ ออกตอนนี้ข้อมูลจะหาย กรุณาลองอีกครั้งเมื่อมีอินเทอร์เน็ต'; return; }
+  rpc('ll_logout', { p_token:S.sess[name] }).catch(()=>{});
+  delete S.sess[name]; delete S.dirty[name]; delete S.profiles[name];
+  if (S.viewer===name) S.viewer = null;
+  $('#setupErr').textContent = '';
+  save(); renderSetup(); setSkin(S.settings.names[0].trim());
+}
 function seg(id, key, values, min, max, customLabel){
   const box = $('#seg-'+id), cur = S.settings[key];
   box.innerHTML = values.map(v => `<button type="button" data-v="${v}" aria-pressed="${v===cur}">${v}</button>`).join('')
@@ -407,22 +478,56 @@ function renderSetup(){
   $('#known').innerHTML = allProfiles().map(p=>`<option value="${esc(p.name)}"></option>`).join('');
   $('#names').innerHTML = Array.from({length:st.players},(_,i)=>`
     <div class="nameRow"><span data-av="${i}">${avatarHtml(S.profiles[st.names[i].trim()])}</span>
-    <input id="name${i}" list="known" maxlength="16" autocomplete="off" aria-label="ชื่อผู้เล่น ${i+1}" placeholder="P${i+1}" value="${esc(st.names[i])}"></div>`).join('');
-  for (let i=0;i<st.players;i++) $('#name'+i).oninput = e => {
-    st.names[i] = e.target.value; save();
-    $(`[data-av="${i}"]`).innerHTML = avatarHtml(S.profiles[e.target.value.trim()]);
-    if (i===0) setSkin(e.target.value.trim());
-  };
+    <input id="name${i}" list="known" maxlength="16" autocomplete="off" aria-label="ชื่อผู้เล่น ${i+1}" placeholder="P${i+1}" value="${esc(st.names[i])}"><span class="auth" data-auth="${i}"></span></div>`).join('');
+  for (let i=0;i<st.players;i++) {
+    renderAuth(i);
+    $('#name'+i).oninput = e => {
+      st.names[i] = e.target.value; save();
+      pins[i] = ''; renderAuth(i);
+      $(`[data-av="${i}"]`).innerHTML = avatarHtml(S.profiles[e.target.value.trim()]);
+      if (i===0) setSkin(e.target.value.trim());
+    };
+  }
+}
+const LOGIN_ERR = {
+  bad_pin:n=>`PIN ของ ${n} ไม่ถูกต้อง ถ้าเป็นผู้เล่นใหม่ ชื่อนี้มีคนใช้แล้ว กรุณาเปลี่ยนชื่อ`,
+  locked:n=>`บัญชี ${n} ถูกล็อก 15 นาที เพราะใส่ PIN ผิดหลายครั้ง`,
+  bad_name:n=>`ชื่อ ${n} ใช้ไม่ได้`,
+};
+async function loginAll(names){
+  for (let i=0;i<names.length;i++) {
+    const n = names[i];
+    if (S.sess[n] || !pins[i]) continue;
+    if (!/^\d{4}$/.test(pins[i])) return `PIN ของ ${n} ต้องเป็นตัวเลข 4 หลัก`;
+    let r;
+    try { r = await rpc('ll_login', { p_name:n, p_pin:pins[i], p_data:toData(S.profiles[n] || newProfile(n)) }); }
+    catch (e) { return `เชื่อมต่อไม่ได้ กรุณาลองใหม่ หรือลบ PIN ของ ${n} เพื่อเล่นเฉพาะในเครื่องนี้`; }
+    if (!r.token) return (LOGIN_ERR[r.status] || (()=>'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่'))(n);
+    if (r.name!==n) delete S.profiles[n];
+    adopt(r.name, r.data);
+    S.sess[r.name] = r.token;
+    names[i] = S.settings.names[i] = r.name;
+    pins[i] = '';
+    save();
+  }
+  return '';
 }
 $('#shuffle').onchange = e => { S.settings.shuffle = e.target.checked; save(); };
-$('#setupForm').onsubmit = e => {
+$('#setupForm').onsubmit = async e => {
   e.preventDefault();
   if (document.activeElement && document.activeElement.type==='number') document.activeElement.blur();
   const st = S.settings;
   const names = Array.from({length:st.players},(_,i)=>st.names[i].trim() || 'P'+(i+1));
   const seen = new Set(names.map(n=>n.toLowerCase()));
   if (seen.size < names.length) { $('#setupErr').textContent = 'ชื่อผู้เล่นซ้ำกัน กรุณาเปลี่ยนให้ไม่เหมือนกัน'; return; }
-  $('#setupErr').textContent = '';
+  const btn = $('#startBtn');
+  if (btn.disabled) return;
+  btn.disabled = true; $('#setupErr').textContent = 'กำลังเชื่อมต่อ...';
+  const err = await loginAll(names);
+  if (!err) await syncAll();
+  btn.disabled = false;
+  $('#setupErr').textContent = err;
+  if (err) { renderSetup(); return; }
   startGame(names);
 };
 
@@ -603,6 +708,7 @@ function endGame(winner){
     return {m,p,won,earn,got};
   }).sort((a,b)=>b.won-a.won||b.earn-a.earn);
   save();
+  rows.forEach(r=>changed(r.m.name));
   beep(660,.12,'triangle',.09); setTimeout(()=>beep(880,.2,'triangle',.09),130);
   $('#sheet').innerHTML=`
     <h2>${esc(winner.name)} ชนะ</h2>
@@ -638,18 +744,27 @@ $('#quitBtn').onclick=e=>{
 };
 
 /* ---------- ranking ---------- */
-let rankBy='points';
+let rankBy='points', rankCloud=[];
 function renderRank(){
+  drawRank();
+  rpc('ll_leaderboard').then(list=>{ rankCloud=list; $('#rankOff').hidden=true; }).catch(()=>{ $('#rankOff').hidden=false; })
+    .finally(()=>{ if(!$('#rank').hidden) drawRank(); });
+}
+function drawRank(){
   const opts=[['points','คะแนน'],['wins','ชนะ'],['best','เร็วสุด']];
   $('#rankSort').innerHTML=opts.map(([k,l])=>`<button type="button" data-k="${k}" aria-pressed="${k===rankBy}">${l}</button>`).join('');
-  $('#rankSort').querySelectorAll('button').forEach(b=>b.onclick=()=>{rankBy=b.dataset.k;renderRank();});
-  const list=allProfiles().filter(p=>p.games>0);
+  $('#rankSort').querySelectorAll('button').forEach(b=>b.onclick=()=>{rankBy=b.dataset.k;drawRank();});
+  const merged=new Map(rankCloud.map(r=>[r.name.toLowerCase(),{...r,eq:cleanEq(r.eq)}]));
+  const cloudKeys=new Set(merged.keys());
+  allProfiles().filter(p=>p.games>0).forEach(p=>{ const k=p.name.toLowerCase(); if(!merged.has(k)||S.sess[p.name]) merged.set(k,p); });
+  const list=[...merged.values()];
+  const isLocal=p=>!cloudKeys.has(p.name.toLowerCase())&&!S.sess[p.name];
   if(!list.length){ $('#rankBody').innerHTML=`<div class="empty">ยังไม่มีอันดับ เล่นให้จบหนึ่งเกมแล้วชื่อของทุกคนจะขึ้นที่นี่</div>`; return; }
   list.sort((a,b)=> rankBy==='wins'? b.wins-a.wins||b.points-a.points : rankBy==='best'? (a.bestMs??1e9)-(b.bestMs??1e9) : b.points-a.points);
   $('#rankBody').innerHTML=`<div class="tblWrap"><table>
     <thead><tr><th>#</th><th>ผู้เล่น</th><th>คะแนน</th><th>ชนะ</th><th>แพ้</th><th>อัตราชนะ</th><th>เร็วสุด</th></tr></thead>
     <tbody>${list.map((p,i)=>`<tr class="${i===0?'p1':''}"><td>${i+1}</td>
-      <td><div class="who">${avatarHtml(p)}<div>${esc(p.name)}${byId[p.eq.title].title?`<small>${byId[p.eq.title].title}</small>`:''}</div></div></td>
+      <td><div class="who">${avatarHtml(p)}<div>${esc(p.name)}${byId[p.eq.title].title?`<small>${byId[p.eq.title].title}</small>`:''}${isLocal(p)?`<small class="note">เฉพาะเครื่องนี้</small>`:''}</div></div></td>
       <td>${fmt(p.points)}</td><td>${p.wins}</td><td>${p.losses}</td><td>${Math.round(p.wins/p.games*100)}%</td>
       <td>${p.bestMs!=null?(p.bestMs/1000).toFixed(2)+' วิ':'-'}</td></tr>`).join('')}</tbody></table></div>`;
 }
@@ -682,12 +797,20 @@ function renderShop(){
     }).join('')}</div></section>`).join('')}
     <section><h3 class="sect">ของรางวัลจากความสำเร็จ</h3><div class="achs">${ACHS.map(a=>`<div class="ach ${p.ach.includes(a.id)?'done':''}"><span>${a.name}</span><span>+${a.coins}</span></div>`).join('')}</div></section>`;
   $('#viewer').onchange=e=>{S.viewer=e.target.value;save();renderShop();};
-  body.querySelectorAll('[data-use]').forEach(b=>b.onclick=()=>{const it=byId[b.dataset.use];p.eq[it.cat]=it.id;save();renderShop();});
+  body.querySelectorAll('[data-use]').forEach(b=>b.onclick=()=>{const it=byId[b.dataset.use];p.eq[it.cat]=it.id;save();changed(p.name);renderShop();});
   body.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{
     const it=byId[b.dataset.buy]; if(p.coins<it.price||owns(p,it)) return;
-    p.coins-=it.price; p.owned.push(it.id); p.eq[it.cat]=it.id; save(); beep(990,.12,'triangle',.09); renderShop();
+    p.coins-=it.price; p.owned.push(it.id); p.eq[it.cat]=it.id; save(); changed(p.name); beep(990,.12,'triangle',.09); renderShop();
   });
 }
 
 show('home');
+function resync(){
+  syncAll().then(()=>{
+    if ($('#home').hidden || $('#home').contains(document.activeElement)) return;
+    renderSetup(); setSkin(S.settings.names[0].trim());
+  });
+}
+resync();
+addEventListener('online', resync);
 </script>
